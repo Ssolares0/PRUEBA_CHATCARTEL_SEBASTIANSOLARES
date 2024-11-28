@@ -7,5 +7,7 @@ const indexController = require('../controller/index.controller.js');
 //estas son mis rutas de la aplicacion
 router.get('/', indexController.index);
 
+router.post('/users',indexController.createUser);
+
 
 module.exports = router;
