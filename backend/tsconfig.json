@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES6",                      // Compilar a ECMAScript 6
+    "module": "commonjs",                  // Usar módulos CommonJS
+    "strict": true,                        // Activar las comprobaciones estrictas
+    "esModuleInterop": true,               // Permitir importar módulos CommonJS como si fueran ESModules
+    "skipLibCheck": true,                  // Omite la comprobación de tipos de las bibliotecas
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "controller/**/*.ts",                        // Incluir todos los archivos TypeScript en los directorios
+    "routes/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
