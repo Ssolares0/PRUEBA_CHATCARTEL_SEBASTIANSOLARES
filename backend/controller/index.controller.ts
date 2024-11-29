@@ -176,6 +176,7 @@ const getUserInfo = (req: Request, res: Response): void => {
 
 
 }
+//prueba 
 
 export {
     index,
