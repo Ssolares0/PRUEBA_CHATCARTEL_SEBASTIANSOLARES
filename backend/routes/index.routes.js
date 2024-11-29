@@ -9,5 +9,8 @@ router.get('/', indexController.index);
 
 router.post('/users',indexController.createUser);
 
+router.post('/auth/login',indexController.login);
+
+
 
 module.exports = router;
