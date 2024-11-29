@@ -1,7 +1,10 @@
 import express, { Request, Response } from 'express';
 import mysql, { RowDataPacket } from 'mysql2';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { generateToken, comparePassword, hashPassword } from '../autenticacion/auth';
+import bcrypt from 'bcryptjs';
+import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
+
+
 
 
 // Definición de la interfaz para el cuerpo de la solicitud
@@ -10,6 +13,8 @@ interface UserRequestBody {
     username: string;
     password: string;
 }
+
+
 
 interface LoginRequestBody {
     username: string;
@@ -23,13 +28,7 @@ interface User {
     password: string;
     id_role: number;
 }
-// Middleware para verificar el token JWT
-interface AutenticacionRequest extends Request {
-    user?: {
-        id_user: number;
-        id_role: number;
-    };
-}
+
 // Función para la ruta index
 const index = (req: Request, res: Response): void => {
     res.status(200).json({ message: "Funcionando" });
@@ -99,9 +98,11 @@ const createUser = async (req: Request, res: Response) => {
 
 // endpoint para hacer login
 
-const login = (req: Request, res: Response): void => {
+const login = async (req: Request, res: Response) => {
 
     const { username, password } = req.body;
+
+
 
     // primero verificamos si  se mandaron los campos de usuario y contraseña
     const body: LoginRequestBody = req.body;
@@ -113,7 +114,7 @@ const login = (req: Request, res: Response): void => {
         //entonces como no existe error seguimos
         // buscamos el usuario en la base de datos
 
-        connection.query('SELECT * FROM users WHERE username = ?', [username], (error, results: RowDataPacket[], fields) => {
+        connection.query('SELECT * FROM users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
             if (error) {
                 console.log('Error en la consulta:', error);
                 return res.status(500).json({ message: 'Error en la  consulta de la base de datos' });
@@ -127,9 +128,12 @@ const login = (req: Request, res: Response): void => {
 
             // ahora hacemos la comprobacion de la contraseña con bcrypt
             // Verificar si la contraseña coincide usando bcrypt  y async
-            const isMatch = comparePassword(password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({ message: 'Credenciales incorrectas' });
+            console.log(user.password);
+            // Comparamos la contraseña ingresada con el hash almacenado en la base de datos
+            const ismatch = await bcrypt.compare(password, user.password);
+
+            if (!ismatch) {
+                return res.status(401).json({ message: 'Contraseña incorrecta' });
             }
 
             // como las credenciales son correctas generamos el token
@@ -149,55 +153,30 @@ const login = (req: Request, res: Response): void => {
             });
 
 
-
-
         });
-
 
     }
 
 }
 
 // endpoint para obtener informacion del usuario autenticado
-const getUserInfo = (req: AutenticacionRequest, res: Response): void => {
+const getUserInfo = (req: Request, res: Response): void => {
 
-    // validar si el id que viene en parametro es igual al id del token generado
-    const userId = parseInt(req.params.id);
-    console.log('userId:', userId); 
-    // obtenemos el id del usuario
-    
-    if(isNaN(userId)){
-        res.status(401).json({ message: 'error en el parametro: no es un entero' });
-        return;
-    }
+    const { myid } = req.params; //obtengo el id de los parametros
 
-    //verificamos si esta autenticado
-    
-    if (!req.user) {
-        res.status(401).json({ message: 'No estás autenticado' });
-        return;
-    }
-    const userIdAutenticado = req.user.id_user;
-    const RoleAutenticado = req.user.id_role;
 
-    // Verificar si el usuario autenticado es el mismo o tiene rol de administrador
-    if (userIdAutenticado !== userId && RoleAutenticado !== 1) {
-         res.status(403).json({ message: 'No autorizado para acceder a esta información' });
-         return;
-    }
-    // como si tiene permisos de admin obtenemos la informacion de la database
-    connection.query('SELECT id_user, name, username, id_role FROM users WHERE id_user = ?', [userId], (err, results) => {
-        if (err) {
-            console.log('Error en la consulta:', err);
-            return res.status(500).json({ message: 'Error en la consulta de la base de datos' });
+    connection.query('SELECT * FROM users WHERE id_user = ?', [myid], (error, results) => {
+        if (error) {
+            return res.status(500).json({ message: 'Error al consultar la base de datos' });
         }
 
-        
 
-        const user = results;
-        res.status(200).json(user);
+        res.json(results);
     });
+
+
 }
+
 export {
     index,
     createUser,

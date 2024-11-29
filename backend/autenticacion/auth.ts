@@ -27,3 +27,17 @@ export const hashPassword = (password: string): Promise<string> => {
     
 
 };
+
+// funcion que nos sirve para verificar el token jwt
+export const verificarTk = (token: string): Record<string, any> | null => {
+    const secretKey = process.env.JWT_SECRET_KEY || 'secretkey123';
+
+    try {
+        // Decodifica y verifica el token usando la clave secreta
+        const decoded = jwt.verify(token, secretKey);
+        return decoded as Record<string, any>;
+    } catch (error) {
+        // Si el token no es válido o ha expirado, retornar null
+        return null;
+    }
+};
