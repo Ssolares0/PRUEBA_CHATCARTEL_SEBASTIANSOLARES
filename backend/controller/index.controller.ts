@@ -25,7 +25,10 @@ interface User {
 }
 // Middleware para verificar el token JWT
 interface AutenticacionRequest extends Request {
-    user?: JwtPayload;
+    user?: {
+        id_user: number;
+        id_role: number;
+    };
 }
 // Función para la ruta index
 const index = (req: Request, res: Response): void => {
@@ -50,21 +53,28 @@ connection.connect((error) => {
 });
 
 // endpoint para crear un nuevo usuario
-const createUser = (req: Request, res: Response): void => {
+const createUser = async (req: Request, res: Response) => {
     const body: UserRequestBody = req.body;
+
+    //primero creamos el administrador
+
 
     // Validamos los campos
     console.log(body.username);
 
     if (!body.username || !body.password || !body.name) {
-        res.json("Existe un error en los datos");
+        res.status(401).json({ message: 'existe un error en los campos' });
     } else {
         // Si no existe ningún error seguimos
+
+        //encriptamos la contraseña
+        const hashedPassword = await hashPassword(body.password);
+        console.log('hashedPassword:', hashedPassword);
         const user: User = {
             id_user: null,
             name: body.name,
             username: body.username,
-            password: body.password,
+            password: hashedPassword,
             id_role: 2
         };
 
@@ -150,11 +160,21 @@ const login = (req: Request, res: Response): void => {
 
 // endpoint para obtener informacion del usuario autenticado
 const getUserInfo = (req: AutenticacionRequest, res: Response): void => {
+
+    // validar si el id que viene en parametro es igual al id del token generado
     const userId = parseInt(req.params.id);
     console.log('userId:', userId); 
-    // obtenemos el usuario autenticado
-    if(!req.user){
-        res.status(401).json({ message: 'No estas autenticado!!' });
+    // obtenemos el id del usuario
+    
+    if(isNaN(userId)){
+        res.status(401).json({ message: 'error en el parametro: no es un entero' });
+        return;
+    }
+
+    //verificamos si esta autenticado
+    
+    if (!req.user) {
+        res.status(401).json({ message: 'No estás autenticado' });
         return;
     }
     const userIdAutenticado = req.user.id_user;

@@ -49,7 +49,7 @@ INSERT INTO roles (id_role, role_name) VALUES (1, 'Admin');
 INSERT INTO roles (id_role, role_name) VALUES (2, 'User');
 
 -- Insertamos usuarios --
-INSERT INTO users (id_user, name, password, username, id_role) VALUES (1, 'Admin', 'admin', 'admin', 1);
+INSERT INTO users (id_user, name, password, username, id_role) VALUES (1, 'admin', 'admin', 'admin', 1);
 
 -- Insertamos proyectos --
 INSERT INTO projects (id_project, name_project, created_time, id_user) VALUES (1, 'Proyecto 1', '2024-11-28 00:00:00', 1);
