@@ -7,8 +7,8 @@ import mongoose from 'mongoose';
 //import {resourceController} from '../models/resourceController';    
 
 //almacenar el token
-let globalToken: string | null = null;
-
+let globalToken: string = '';
+let isAdmin: boolean = false;
 // Definición de la interfaz para el cuerpo de la solicitud
 interface UserRequestBody {
     name: string;
@@ -103,7 +103,7 @@ const createUser = async (req: Request, res: Response) => {
 
 const login = async (req: Request, res: Response) => {
 
-    const { username, password } = req.body;
+    const { username, password} = req.body;
 
 
 
@@ -117,6 +117,8 @@ const login = async (req: Request, res: Response) => {
         //entonces como no existe error seguimos
         // buscamos el usuario en la base de datos
 
+        
+
         connection.query('SELECT * FROM users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
             if (error) {
                 console.log('Error en la consulta:', error);
@@ -128,38 +130,56 @@ const login = async (req: Request, res: Response) => {
             // como si encontro el usuario seguimos
             const user = results[0];
 
-
-            // ahora hacemos la comprobacion de la contraseña con bcrypt
-            // Verificar si la contraseña coincide usando bcrypt  y async
-            console.log(user.password);
-            // Comparamos la contraseña ingresada con el hash almacenado en la base de datos
-            const ismatch = await bcrypt.compare(password, user.password);
-
-            if (!ismatch) {
-                return res.status(401).json({ message: 'Contraseña incorrecta' });
-            }
-
-            // como las credenciales son correctas generamos el token
-            const payload = {
-                id_user: user.id_user,
-                name: user.name,
-                username: user.username,
-                id_role: user.id_role
-            };
-
-            const token = generateToken(payload);
-
-            //guardamos el token en una variable global
-            //globalToken = token;
-
+            // Verificamos si el usuario es administrador
             
-            
-            // Responder con el token
-            res.json({
-                message: 'Autenticación exitosa',
-                token: token
-            });
 
+            if (user.id_role === 1 && username === 'admin' && password === 'admin') { 
+                isAdmin = true;
+                console.log('isAdmin:', isAdmin);
+
+                globalToken = "admin";
+                
+                
+                // Responder con el token
+                res.json({
+                    message: 'Autenticación exitosa',
+                    token: "admin"
+                });
+                
+            } else {
+                //como no es administrador verificamos el password con bcrypt
+                isAdmin = false;
+                
+                // Verificar si la contraseña coincide usando bcrypt  y async
+                console.log(user.password);
+               
+                // Comparamos la contraseña ingresada con el hash almacenado en la base de datos
+                const ismatch = await bcrypt.compare(password, user.password);
+
+                if (!ismatch) {
+                    return res.status(401).json({ message: ' Usuario o Contraseña incorrecta' });
+                }
+
+                // como las credenciales son correctas generamos el token
+                const payload = {
+                    id_user: user.id_user,
+                    name: user.name,
+                    username: user.username,
+                    id_role: user.id_role
+                };
+
+                const token = generateToken(payload);
+
+                //guardamos el token en una variable global
+                globalToken = token;
+                // Responder con el token
+                res.json({
+                    message: 'Autenticación exitosa',
+                    token: token
+                });
+
+                }
+           
 
         });
 
@@ -169,32 +189,114 @@ const login = async (req: Request, res: Response) => {
 
 // endpoint para obtener informacion del usuario autenticado
 const getUserInfo = (req: Request, res: Response): void => {
-    //console.log('globalToken:', globalToken);
+    // Verificar si el token es válido
+    const token = globalToken;
+
+    //con la funcion verificarTk verificamos si el token es valido
+    const decoded = verificarTk(token);
     
-    
-    const { myid } = req.params; //obtengo el id de los parametros
+    if (decoded ) {
+        //como si esta autorizado entonces obtenemos el id del usuario
+        const { id } = req.params; //obtengo el id de los parametros
 
-    console.log('myid:', myid);
+        //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
-
-    connection.query('SELECT * FROM users WHERE id_user = ?', [myid], (error, results) => {
-        if (error) {
-            return res.status(500).json({ message: 'Error al consultar la base de datos' });
+       if (id.toString() === decoded.id_user.toString()) {
+            connection.query('SELECT * FROM users WHERE id_user = ?', [id], (error, results) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error al consultar la base de datos' });
+                }
+        
+        
+                res.json(results);
+            });
+        } else {
+            res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
         }
+        
+    } else if (token === 'admin') { 
+        //como es admin entonces puede ver todos los usuarios
+        connection.query('SELECT * FROM users', (error, results) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error al consultar la base de datos' });
+            }
+    
+    
+            res.json(results);
+        });
+    } else {
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        
+    }
+    
+    
+    
 
 
-        res.json(results);
-    });
+    
 
 
 }
-//prueba 
+
+const updateUserInfo = (req: Request, res: Response) => {
+    //obtenemos el id del usuario de los parametros
+    const { id } = req.params; //obtengo el id de los parametros
+    //obtengo los datos del body
+    const {name, username} = req.body;
+
+    if (!name || !username )  {
+        return res.status(401).json({ message: 'Los campos name y username son obligatorios' });
+    }
+
+    // Verificar si el token es válido
+    const token = globalToken;
+
+    //con la funcion verificarTk verificamos si el token es valido
+    const decoded = verificarTk(token);
+    
+    if (decoded ) {
+        
+
+        //obtentemos el nombre y el username del usuario autenticado
+        
+
+        //verificamos si el id de los parametros  es igual al id del usuario autenticado
+
+       if (id.toString() === decoded.id_user.toString()) {
+            connection.query('UPDATE users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
+                }
+        
+        
+                res.json(results);
+            });
+        } else {
+            res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
+        }
+        
+    } else if (token === 'admin') { 
+        //como es admin entonces puede ver todos los usuarios
+        connection.query('UPDATE users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
+            }
+    
+    
+            res.json(results);
+        });
+    } else {
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        
+    }
+}
 
 
 export {
     index,
     createUser,
     login,
-    getUserInfo
+    getUserInfo,
+    updateUserInfo
 
 };

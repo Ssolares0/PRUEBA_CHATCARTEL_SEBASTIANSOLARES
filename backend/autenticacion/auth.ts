@@ -33,11 +33,13 @@ export const verificarTk = (token: string): Record<string, any> | null => {
     const secretKey = process.env.JWT_SECRET_KEY || 'secretkey123';
 
     try {
-        // Decodifica y verifica el token usando la clave secreta
+        
+        // Decodifica y verifica el token usando nuestra llave secreta
         const decoded = jwt.verify(token, secretKey);
         return decoded as Record<string, any>;
     } catch (error) {
-        // Si el token no es válido o ha expirado, retornar null
+        // Si el token no es válido o ha expirado, retornar null o vacio
         return null;
     }
+    //
 };

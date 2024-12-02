@@ -12,7 +12,9 @@ router.post('/users',indexController.createUser);
 
 router.post('/auth/login',indexController.login);
 
-router.get('/users/:id',autenticarUsuario,indexController.getUserInfo);
+router.get('/users/:id',indexController.getUserInfo);
+
+router.put('/users/:id',indexController.updateUserInfo);
 
 
 

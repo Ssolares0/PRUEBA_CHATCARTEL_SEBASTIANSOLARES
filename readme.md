@@ -92,3 +92,105 @@ CREATE TABLE `Projects` (
   `id_user` int
 );
 ```
+
+### Como usar la API RESTful
+Debes utilizar postman como herramienta para consumir APIS o puedes utilizar la que desees.
+
+## Usuario admin
+Solo existe un administrador de la aplicacion y cuenta con la siguiente informacion, el id del admin empieza con 1 y el resto
+de usuarios incrementa de uno en uno.
+```json
+{
+    "name":"admin",
+    "username":"admin",
+    "password":"admin"
+
+}
+```
+
+## Creacion de usuario
+para crear un usuario debes ingresar la URL POST /users para crear un usuario con el siguiente cuerpo en formato JSON.
+
+(EL ID EMPIEZA A CONTAR DESDE EL 2, YA QUE EL 1 ES RESERVADO PARA EL ADMIN)
+
+ejemplo:
+```json
+{
+    "name":"Juan Valencia",
+    "username":"juan00",
+    "password":"juanito2020"
+
+}
+```
+
+
+## Login
+para logearte debes usar la URL POST /auth/login para autenticarte, con el siguiente ejemplo del cuerpo del mensaje
+
+
+```json
+{
+
+    "username":"juan00",
+    "password":"juanito2020"
+
+}
+```
+
+Si el usuario o la contrasena no coincide con los usuarios registrados, marcara un error.
+
+
+## Obtener Informacion del usuario
+Se puede obtener informacion de un usuario solo si este esta logeado y coincide con el id del parametro GET /users/:id
+
+ejemplo 1:
+GET /users/2
+
+Respuesta:
+```json
+{
+
+    {
+        "id_user": 2,
+        "name": "Juan Valencia",
+        "password": "$2a$10$pvbwvs93jkZuCcaJHplgquzH4O0BH.5XyTw3XD5NXjLcfqVwQKQMW",
+        "username": "juanito00",
+        "id_role": 2 // rol usuario normal
+    }
+
+}
+```
+
+ejemplo 2:
+GET /users/1
+
+Respuesta:
+```json
+{
+
+    {
+        "id_user": 1,
+        "name": "admin",
+        "password": "$2a$10$pvbwvs93jkZuCcaJHplgquzH4O0BH.5XyTw3XD5NXjLcfqVwQKQMW",
+        "username": "admin",
+        "id_role": 1 // rol usuario administrador
+    }
+
+}
+```
+## Actualizar la informacion de un usuario
+Se puede actualizar la informacion de un usuario solo si este esta logeado y coincide con el id del parametro PUT /users/:id y solo actualizara el de el mismo. Se debe enviar un body con estos campos a actualizar.
+
+```json
+{
+
+    "name":"Juan Andres Valencia España",
+    "username":"juanNuevo"
+
+}
+```
+
+
+
+
+
