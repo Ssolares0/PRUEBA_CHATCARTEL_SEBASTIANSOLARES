@@ -16,6 +16,8 @@ router.get('/users/:id',indexController.getUserInfo);
 
 router.put('/users/:id',indexController.updateUserInfo);
 
+router.delete('/users/:id',indexController.deleteUser);
+
 
 
 export default router;

@@ -106,7 +106,6 @@ const login = async (req: Request, res: Response) => {
     const { username, password} = req.body;
 
 
-
     // primero verificamos si  se mandaron los campos de usuario y contraseña
     const body: LoginRequestBody = req.body;
 
@@ -117,7 +116,6 @@ const login = async (req: Request, res: Response) => {
         //entonces como no existe error seguimos
         // buscamos el usuario en la base de datos
 
-        
 
         connection.query('SELECT * FROM users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
             if (error) {
@@ -229,15 +227,9 @@ const getUserInfo = (req: Request, res: Response): void => {
         
     }
     
-    
-    
-
-
-    
-
 
 }
-
+//endpoint para actualizar la informacion del usuario
 const updateUserInfo = (req: Request, res: Response) => {
     //obtenemos el id del usuario de los parametros
     const { id } = req.params; //obtengo el id de los parametros
@@ -255,10 +247,6 @@ const updateUserInfo = (req: Request, res: Response) => {
     const decoded = verificarTk(token);
     
     if (decoded ) {
-        
-
-        //obtentemos el nombre y el username del usuario autenticado
-        
 
         //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
@@ -291,12 +279,47 @@ const updateUserInfo = (req: Request, res: Response) => {
     }
 }
 
+//endpoint para eliminar un usuario
+const deleteUser = (req: Request, res: Response) => {
+
+    //obtenemos el id del usuario de los parametros
+    const { id } = req.params; //obtengo el id de los parametros
+
+    // Verificar si el token es válido
+    const token = globalToken;
+
+    
+    
+    // solo administrador puede eliminar un usuario registrado
+    if (token === 'admin') {
+
+        if (!id ) {
+            return res.status(401).json({ message: 'ERROR: El id es obligatorio' });
+        } else if (id === '1') {
+            return res.status(401).json({ message: 'ERROR: No puedes eliminar al administrador' });
+        } connection.query('DELETE FROM users WHERE id_user = ?', [id], (error, results) => {
+            if (error) {
+                    return res.status(500).json({ message: 'Error al eliminar datos en la BD' });
+            }
+        
+        
+            res.json(results);
+        });
+        
+    } else {
+        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+    }
+}
+
+
+// exportamos mis rutas de la aplicacion
 
 export {
     index,
     createUser,
     login,
     getUserInfo,
-    updateUserInfo
+    updateUserInfo,
+    deleteUser
 
 };
