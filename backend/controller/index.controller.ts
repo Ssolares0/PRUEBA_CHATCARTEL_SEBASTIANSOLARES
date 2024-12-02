@@ -4,6 +4,7 @@ import mysql, { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
 import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
 import mongoose from 'mongoose';
+import e from 'express';
 //import {resourceController} from '../models/resourceController';    
 
 //almacenar el token
@@ -140,16 +141,14 @@ const login = async (req: Request, res: Response) => {
                 
                 // Responder con el token
                 res.json({
-                    message: 'Autenticación exitosa',
-                    token: "admin"
+                    message: 'Autenticación exitosa Como Administrador!!',
+                    
                 });
                 
             } else {
                 //como no es administrador verificamos el password con bcrypt
                 isAdmin = false;
                 
-                // Verificar si la contraseña coincide usando bcrypt  y async
-                console.log(user.password);
                
                 // Comparamos la contraseña ingresada con el hash almacenado en la base de datos
                 const ismatch = await bcrypt.compare(password, user.password);
@@ -172,8 +171,8 @@ const login = async (req: Request, res: Response) => {
                 globalToken = token;
                 // Responder con el token
                 res.json({
-                    message: 'Autenticación exitosa',
-                    token: token
+                    message: `Bienvenido ${username}!!`,
+                    
                 });
 
                 }
@@ -223,7 +222,7 @@ const getUserInfo = (req: Request, res: Response): void => {
             res.json(results);
         });
     } else {
-        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
         
     }
     
@@ -264,7 +263,7 @@ const updateUserInfo = (req: Request, res: Response) => {
         }
         
     } else if (token === 'admin') { 
-        //como es admin entonces puede ver todos los usuarios
+        //como es admin entonces puede modificar todos los usuarios
         connection.query('UPDATE users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
@@ -274,7 +273,7 @@ const updateUserInfo = (req: Request, res: Response) => {
             res.json(results);
         });
     } else {
-        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
         
     }
 }
@@ -307,8 +306,205 @@ const deleteUser = (req: Request, res: Response) => {
         });
         
     } else {
-        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
+}
+
+// endpoint para crar un proyecto
+const createProject = (req: Request, res: Response) => {
+
+    const token = globalToken;
+
+    //solo el administrador puede crearle projectos a los usuarios y tareas
+
+    if (token === 'admin') {
+        //obtenemos los datos del body
+        const {name_project, id_user} = req.body;
+
+        if (!name_project  || !id_user ) {
+            return res.status(401).json({ message: 'Los campos name y id_user son obligatorios' });
+        } 
+         // Obtengo la fecha actual  y la formateo
+        const now = new Date();
+        const created_time  = now.toISOString().slice(0, 19).replace('T', ' ');
+
+        //verificamos que el usuario exista
+        connection.query('SELECT * FROM users WHERE id_user = ?', [id_user], (error, results: RowDataPacket[], fields) => {
+
+            if (error) {
+                console.log('Error en la consulta:', error);
+                return res.status(500).json({ message: 'Error en la  consulta de la base de datos' });
+            }
+            if (results.length === 0) {
+                return res.status(401).json({ message: 'ERROR: Al usuario que deseas agregar un proyecto no existe!' });
+
+            }
+            // como si existe insertamos los datos en la tabla projects
+
+            connection.query('INSERT INTO projects SET ?', {name_project,created_time , id_user}, (error, results) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error al insertar datos en la BD', error });
+                }
+            
+            
+                res.json({ message: 'Proyecto creado exitosamente al usuario ', results });
+            });
+
+
+        });
+
+        
+    } else {
+        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+    }
+}
+
+
+//endpoint para obtener los projectos
+
+const getProjects = (req: Request, res: Response) => {
+    // Verificar si el token es válido
+    const token = globalToken;
+
+    //con la funcion verificarTk verificamos si el token es valido
+    const decoded = verificarTk(token);
+
+    if (decoded){
+        
+        let id = decoded.id_user.toString();
+        if (decoded.id_user.toString()) {
+            connection.query('SELECT * FROM projects WHERE id_user = ?', [id], (error, results) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error al consultar la base de datos' });
+                }
+        
+        
+                res.json(results);
+            });
+        } else {
+            res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
+        }
+    } else if (token === 'admin') {
+        connection.query('SELECT * FROM projects', (error, results) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error al consultar la base de datos' });
+            }
+    
+    
+            res.json(results);
+        });
+        
+    } else {
+        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+    }
+}
+
+
+// endpoint para asignrar tareas a un proyecto especifico
+
+const assignTask = (req: Request, res: Response) => {
+
+    const {id} = req.params;
+    
+
+    const {task_name, status, id_user, due_date} = req.body;
+
+    // valido de  que los datos datos requeridos esten completos
+    if (!task_name || !status || !id_user || !due_date) {
+        return res.status(400).json({ message: 'ERROR: Todos los campos (task_name, status, id_user, due_date) son obligatorios!!.' });
+    }
+    // obtengo el token
+    const token = globalToken;
+
+    //solo el administrador puede asignar tareas a los usuarios
+
+    if (token === 'admin') {
+        //verificamos que el proyecto exista
+        connection.query('SELECT * FROM projects WHERE id_project = ?', [id], (error, results: RowDataPacket[], fields) => {
+
+            if (error) {
+                console.log('Error en la consulta:', error);
+                return res.status(500).json({ message: 'ERROR: en la  consulta de la base de datos' });
+            }
+            if (results.length === 0) {
+                return res.status(404).json({ message: 'ERROR: El proyecto al que deseas asignar una tarea no existe!' });
+
+            }
+            // como si existe insertamos los datos en la tabla tasks
+
+            const id_project = id;
+
+            connection.query('INSERT INTO tasks SET ?', {task_name, status, id_user, due_date, id_project}, (error, results) => {
+                if (error) {
+                    return res.status(500).json({ 
+                        message: 'Error al insertar datos en la BD', error 
+                    
+                    });
+                }
+            
+            
+                res.json({ 
+                    message: 'Tarea asignada exitosamente al proyecto ',
+                    task_name,
+                    status,
+                    id_user,
+                    due_date,
+                    id
+                
+                });
+            });
+        });
+
+
+    } else {
+        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+    }
+
+
+
+}
+
+// endpoint para obtener las tareas de un proyecto especifico
+const getTasks = (req: Request, res: Response) => {
+
+  
+     // Verificar si el token es válido
+     const token = globalToken;
+
+     //con la funcion verificarTk verificamos si el token es valido
+     const decoded = verificarTk(token);
+     
+     if (decoded ) {
+         //como si esta autorizado entonces obtenemos el id del usuario
+         const { id } = req.params; //obtengo el id de los parametros
+ 
+         //verificamos si el id de los parametros  es igual al id del usuario autenticado
+ 
+        
+        connection.query('SELECT * FROM tasks WHERE id_project = ?', [id], (error, results) => {
+                if (error) {
+                     return res.status(500).json({ message: 'Error al consultar la base de datos' });
+                } res.json(results);
+                
+            });
+ 
+         
+     } else if (token === 'admin') { 
+         //como es admin entonces puede ver todos las tareas
+         connection.query('SELECT * FROM tasks', (error, results) => {
+             if (error) {
+                 return res.status(500).json({ message: 'Error al consultar la base de datos' });
+             }
+     
+     
+             res.json(results);
+         });
+     } else {
+         res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+         
+     }
+
+
 }
 
 
@@ -320,6 +516,10 @@ export {
     login,
     getUserInfo,
     updateUserInfo,
-    deleteUser
+    deleteUser,
+    createProject,
+    getProjects,
+    assignTask,
+    getTasks
 
 };

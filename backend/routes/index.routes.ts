@@ -18,6 +18,13 @@ router.put('/users/:id',indexController.updateUserInfo);
 
 router.delete('/users/:id',indexController.deleteUser);
 
+router.post('/projects',indexController.createProject);
+
+router.get('/projects',indexController.getProjects);
+
+router.post('/projects/:id/tasks',indexController.assignTask);
+
+router.get('/projects/:id/tasks',indexController.getTasks);
 
 
 export default router;
