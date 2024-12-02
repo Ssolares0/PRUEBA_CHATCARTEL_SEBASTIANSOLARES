@@ -45,8 +45,8 @@ CREATE TABLE Tasks (
 
 
 -- Insertamos roles --
-INSERT INTO roles (id_role, role_name) VALUES (1, 'Admin');
-INSERT INTO roles (id_role, role_name) VALUES (2, 'User');
+INSERT INTO roles (id_role, role_name) VALUES (1, 'admin');
+INSERT INTO roles (id_role, role_name) VALUES (2, 'user');
 
 -- Insertamos usuarios --
 INSERT INTO users (id_user, name, password, username, id_role) VALUES (1, 'admin', 'admin', 'admin', 1);

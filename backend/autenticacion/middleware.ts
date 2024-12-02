@@ -1,36 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
 import {verificarTk } from '../autenticacion/auth';
+import jwt from 'jsonwebtoken';
 
+
+const SECRET_KEY = 'secretkey123';
 
 export const autenticarUsuario = (req: Request, res: Response, next: NextFunction) => {
 
-    // Obtener el token de la cabecera
-    console.log(req.headers);
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ message: 'Token no proporcionado o erroneo' });
-
-        
-    }
-    //como no hay error procedemos a verificar el token
-    const decoded = verificarTk(token);
-
-    // Si el token no es valido, retornamos un error
-    if (!decoded) {
-        return res.status(401).json({ message: 'Token no válido o ya expiro!' });
-    }
-
    
-    // Ahora comparamos el id_user del token con el id proporcionado en la solicitud
-    const { id_user } = decoded;  // El payload contiene id_user, asegúrate de que esto es lo que tu token contiene
+    const authHeader = req.headers['authorization'];
+    console.log('Authorization Header:', authHeader); // Imprimir el encabezado para verificar
 
-    const { id } = req.body;  // Supongamos que el id se pasa en el cuerpo de la solicitud
-
-    if (id_user !== id) {
-        return res.status(403).json({ message: 'No tienes permiso para acceder a estos datos' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token no proporcionado o inválido' });
     }
 
-    // Si todo está bien, continuamos con la solicitud
-    next();
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY) as { id_user: number; id_role: string };
+        (req as any).user = decoded;
+        next();
+    } catch (error) {
+        console.error('Error al verificar el token:', error);
+        return res.status(403).json({ message: 'Token inválido o expirado' });
+    }
+    
 }

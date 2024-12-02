@@ -1,11 +1,13 @@
 import express, { Request, Response } from 'express';
 import mysql, { RowDataPacket } from 'mysql2';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+
 import bcrypt from 'bcryptjs';
 import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
+import mongoose from 'mongoose';
+//import {resourceController} from '../models/resourceController';    
 
-
-
+//almacenar el token
+let globalToken: string | null = null;
 
 // Definición de la interfaz para el cuerpo de la solicitud
 interface UserRequestBody {
@@ -34,13 +36,13 @@ const index = (req: Request, res: Response): void => {
     res.status(200).json({ message: "Funcionando" });
 }
 
-// Configuración de la conexión a la base de datos
+// Configuración de la conexión a la base de datos mysql
 const connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
-    password: 'solares',
+    password: 'solares123',
     database: 'chatcartel_db'
-});
+}); 
 
 // Probamos la conexión
 connection.connect((error) => {
@@ -50,6 +52,7 @@ connection.connect((error) => {
         console.log("Conexión a la base de datos exitosa");
     }
 });
+
 
 // endpoint para crear un nuevo usuario
 const createUser = async (req: Request, res: Response) => {
@@ -146,6 +149,11 @@ const login = async (req: Request, res: Response) => {
 
             const token = generateToken(payload);
 
+            //guardamos el token en una variable global
+            //globalToken = token;
+
+            
+            
             // Responder con el token
             res.json({
                 message: 'Autenticación exitosa',
@@ -161,8 +169,12 @@ const login = async (req: Request, res: Response) => {
 
 // endpoint para obtener informacion del usuario autenticado
 const getUserInfo = (req: Request, res: Response): void => {
-
+    //console.log('globalToken:', globalToken);
+    
+    
     const { myid } = req.params; //obtengo el id de los parametros
+
+    console.log('myid:', myid);
 
 
     connection.query('SELECT * FROM users WHERE id_user = ?', [myid], (error, results) => {
@@ -177,6 +189,7 @@ const getUserInfo = (req: Request, res: Response): void => {
 
 }
 //prueba 
+
 
 export {
     index,
