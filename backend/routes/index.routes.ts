@@ -26,5 +26,7 @@ router.post('/projects/:id/tasks',indexController.assignTask);
 
 router.get('/projects/:id/tasks',indexController.getTasks);
 
+router.get('/getLogs',indexController.getLogs);
+
 
 export default router;

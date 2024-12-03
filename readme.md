@@ -237,5 +237,8 @@ POST /projects/:projectId/tasks. Debes estar logeado como admin para poder asign
 ## MongoDB:
 Para la gestión y almacenamiento de logs, se optó por utilizar **MongoDB Atlas**, una plataforma completamente administrada que permite desplegar bases de datos MongoDB en la nube. Esta solución ofrece escalabilidad automática, alta disponibilidad y copias de seguridad integradas,lo que esto nos facilita la integracion de logs.
 
+PARA OBTENER LOS LOGS SE IMPLEMENTO UN ENDPOINT ESPECIFICO PARA OBTENER LOS LOGS DE LA BASE DE DATOS:
+- localhost:4000/getLogs
+
 ## MySQL:
 En cuanto a la base de datos relacional utilizada para la aplicación, se implementó **MySQL** en **Google Cloud**. A través de los servicios de bases de datos gestionadas de Google Cloud, se crearon las instancias necesarias para proporcionar una infraestructura confiable, segura y de alto rendimiento. Google Cloud nos ofrece opciones avanzadas de administración, optimización de costos y escalabilidad, lo que garantiza que la base de datos MySQL pueda crecer y adaptarse a las necesidades de la aplicación de manera eficiente.

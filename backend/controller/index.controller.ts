@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import mysql, { RowDataPacket } from 'mysql2';
-
 import bcrypt from 'bcryptjs';
+import {mysqlconnection,connectToMySQL,connectToMongoDB} from '../basefunctions/conections';
 import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
-import mongoose from 'mongoose';
-import e from 'express';
+import { MongoClient } from 'mongodb';
+import { UserRequestBody, User, LoginRequestBody } from '../interfaces/interfaces';
+import { RowDataPacket } from 'mysql2';
 
 import registerLog from '../models/registerLog';
 
@@ -12,70 +12,38 @@ import registerLog from '../models/registerLog';
 let globalToken: string = '';
 let isAdmin: boolean = false;
 
-//url de mi base de datos mongoDB
 const urlMDB = "mongodb+srv://solares:Pennywise2@cluster0.v1qki.mongodb.net/logs_db?retryWrites=true&w=majority&appName=Cluster0";
-// Definición de la interfaz para el cuerpo de la solicitud
-interface UserRequestBody {
-    name: string;
-    username: string;
-    password: string;
-}
 
 
 
-interface LoginRequestBody {
-    username: string;
-    password: string;
-}
-
-interface User {
-    id_user: number | null;
-    name: string;
-    username: string;
-    password: string;
-    id_role: number;
-}
 
 // Función para la ruta index
 const index = (req: Request, res: Response): void => {
     res.status(200).json({ message: "Funcionando" });
 }
 
-// Configuración de la conexión a la base de datos mysql
-const connection = mysql.createConnection({
-    host: '34.41.84.53',
-    user: 'root',
-    password: 'solares123',
-    database: 'chatcartel_db'
-}); 
+// Función para establecer las conexiones a las bases de datos
+const setupConnection = async () => {
 
-// Probamos la conexión
-connection.connect((error) => {
-    if (error) {
-        console.log("Error en la conexión a la base de datos", error);
-    } else {
-        console.log("Conexión a la base de datos exitosa");
+    try{
+        //tratemos de conectar a la base de datos mysql
+        await connectToMySQL();
+
+        //tratamos de conectar a la base de datos mongoDB
+        await connectToMongoDB();
+
+
+    }catch(error){
+        console.error("No se pueden establecer las conexiones de las BD", error);
     }
-});
 
-// Conecta a MongoDB
-mongoose.connect(urlMDB)
-  .then(() => {
-    console.log("Conectado a la base de datos mongoDB");
-  })
-  .catch((error) => {
-    console.error("Error al conectar a la base de datos:", error);
-  });
-
+}
 
 
 
 // endpoint para crear un nuevo usuario
 const createUser = async (req: Request, res: Response) => {
     const body: UserRequestBody = req.body;
-
-    //primero creamos el administrador
-
 
     // Validamos los campos
     console.log(body.username);
@@ -87,7 +55,7 @@ const createUser = async (req: Request, res: Response) => {
 
         //encriptamos la contraseña
         const hashedPassword = await hashPassword(body.password);
-        console.log('hashedPassword:', hashedPassword);
+        
         const user: User = {
             id_user: null,
             name: body.name,
@@ -97,19 +65,19 @@ const createUser = async (req: Request, res: Response) => {
         };
 
         // Verificamos si el usuario ya existe en la db
-        connection.query('SELECT * FROM users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
+        mysqlconnection.query('SELECT * FROM Users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
             if (results.length > 0) {
                 res.json("El usuario ya existe, prueba con otro username");
             } else {
                 // Si no existe el usuario lo insertamos en la db
-                connection.query('INSERT INTO users SET ?', user, (err, result) => {
+                mysqlconnection.query('INSERT INTO Users SET ?', user, (err, result) => {
                     if (err) {
                         console.log("Existe un error al insertar los datos en la tabla", err);
                         res.json("Existe un error al insertar los datos en la tabla");
                     } else {
                         
                         // Obtener el id del usuario recién creado
-                        connection.query('SELECT id_user FROM users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
+                        mysqlconnection.query('SELECT id_user FROM Users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
                             console.log("results:", results);
                             // Registrar el log
                             registerLog(results[0].id_user.toString(), "CREATE", "USER")
@@ -144,7 +112,7 @@ const login = async (req: Request, res: Response) => {
         // buscamos el usuario en la base de datos
 
 
-        connection.query('SELECT * FROM users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
+        mysqlconnection.query('SELECT * FROM Users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
             if (error) {
                 console.log('Error en la consulta:', error);
                 return res.status(500).json({ message: 'Error en la  consulta de la base de datos' });
@@ -160,7 +128,7 @@ const login = async (req: Request, res: Response) => {
 
             if (user.id_role === 1 && username === 'admin' && password === 'admin') { 
                 isAdmin = true;
-                console.log('isAdmin:', isAdmin);
+                
 
                 globalToken = "admin";
                 
@@ -225,7 +193,7 @@ const getUserInfo = (req: Request, res: Response): void => {
         //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
        if (id.toString() === decoded.id_user.toString()) {
-            connection.query('SELECT * FROM users WHERE id_user = ?', [id], (error, results) => {
+            mysqlconnection.query('SELECT * FROM Users WHERE id_user = ?', [id], (error, results) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al consultar la base de datos' });
                 }
@@ -239,7 +207,7 @@ const getUserInfo = (req: Request, res: Response): void => {
         
     } else if (token === 'admin') { 
         //como es admin entonces puede ver todos los usuarios
-        connection.query('SELECT * FROM users', (error, results) => {
+        mysqlconnection.query('SELECT * FROM Users', (error, results) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al consultar la base de datos' });
             }
@@ -263,7 +231,7 @@ const updateUserInfo = (req: Request, res: Response) => {
 
     if (!name || !username )  {
         return res.status(401).json({ message: 'Los campos name y username son obligatorios' });
-    }
+    } 
 
     // Verificar si el token es válido
     const token = globalToken;
@@ -276,7 +244,7 @@ const updateUserInfo = (req: Request, res: Response) => {
         //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
        if (id.toString() === decoded.id_user.toString()) {
-            connection.query('UPDATE users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
+            mysqlconnection.query('UPDATE Users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
                 }
@@ -293,7 +261,7 @@ const updateUserInfo = (req: Request, res: Response) => {
         
     } else if (token === 'admin') { 
         //como es admin entonces puede modificar todos los usuarios
-        connection.query('UPDATE users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
+        mysqlconnection.query('UPDATE Users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
             }
@@ -330,7 +298,7 @@ const deleteUser = (req: Request, res: Response) => {
             return res.status(401).json({ message: 'ERROR: El id es obligatorio' });
         } else if (id === '1') {
             return res.status(401).json({ message: 'ERROR: No puedes eliminar al administrador' });
-        } connection.query('DELETE FROM users WHERE id_user = ?', [id], (error, results) => {
+        } mysqlconnection.query('DELETE FROM Users WHERE id_user = ?', [id], (error, results) => {
             if (error) {
                     return res.status(500).json({ message: 'Error al eliminar datos en la BD' });
             }
@@ -367,7 +335,7 @@ const createProject = (req: Request, res: Response) => {
         const created_time  = now.toISOString().slice(0, 19).replace('T', ' ');
 
         //verificamos que el usuario exista
-        connection.query('SELECT * FROM users WHERE id_user = ?', [id_user], (error, results: RowDataPacket[], fields) => {
+        mysqlconnection.query('SELECT * FROM Users WHERE id_user = ?', [id_user], (error, results: RowDataPacket[], fields) => {
 
             if (error) {
                 console.log('Error en la consulta:', error);
@@ -379,7 +347,7 @@ const createProject = (req: Request, res: Response) => {
             }
             // como si existe insertamos los datos en la tabla projects
 
-            connection.query('INSERT INTO projects SET ?', {name_project,created_time , id_user}, (error, results) => {
+            mysqlconnection.query('INSERT INTO projects SET ?', {name_project,created_time , id_user}, (error, results) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al insertar datos en la BD', error });
                 }
@@ -415,7 +383,7 @@ const getProjects = (req: Request, res: Response) => {
         
         let id = decoded.id_user.toString();
         if (decoded.id_user.toString()) {
-            connection.query('SELECT * FROM projects WHERE id_user = ?', [id], (error, results) => {
+            mysqlconnection.query('SELECT * FROM projects WHERE id_user = ?', [id], (error, results) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al consultar la base de datos' });
                 }
@@ -427,7 +395,7 @@ const getProjects = (req: Request, res: Response) => {
             res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
         }
     } else if (token === 'admin') {
-        connection.query('SELECT * FROM projects', (error, results) => {
+        mysqlconnection.query('SELECT * FROM projects', (error, results) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al consultar la base de datos' });
             }
@@ -462,7 +430,7 @@ const assignTask = (req: Request, res: Response) => {
 
     if (token === 'admin') {
         //verificamos que el proyecto exista
-        connection.query('SELECT * FROM projects WHERE id_project = ?', [id], (error, results: RowDataPacket[], fields) => {
+        mysqlconnection.query('SELECT * FROM projects WHERE id_project = ?', [id], (error, results: RowDataPacket[], fields) => {
 
             if (error) {
                 console.log('Error en la consulta:', error);
@@ -476,7 +444,7 @@ const assignTask = (req: Request, res: Response) => {
 
             const id_project = id;
 
-            connection.query('INSERT INTO tasks SET ?', {task_name, status, id_user, due_date, id_project}, (error, results) => {
+            mysqlconnection.query('INSERT INTO tasks SET ?', {task_name, status, id_user, due_date, id_project}, (error, results) => {
                 if (error) {
                     return res.status(500).json({ 
                         message: 'Error al insertar datos en la BD', error 
@@ -526,7 +494,7 @@ const getTasks = (req: Request, res: Response) => {
          //verificamos si el id de los parametros  es igual al id del usuario autenticado
  
         
-        connection.query('SELECT * FROM tasks WHERE id_project = ?', [id], (error, results) => {
+        mysqlconnection.query('SELECT * FROM tasks WHERE id_project = ?', [id], (error, results) => {
                 if (error) {
                      return res.status(500).json({ message: 'Error al consultar la base de datos' });
                 } res.json(results);
@@ -536,7 +504,7 @@ const getTasks = (req: Request, res: Response) => {
          
      } else if (token === 'admin') { 
          //como es admin entonces puede ver todos las tareas
-         connection.query('SELECT * FROM tasks', (error, results) => {
+         mysqlconnection.query('SELECT * FROM tasks', (error, results) => {
              if (error) {
                  return res.status(500).json({ message: 'Error al consultar la base de datos' });
              }
@@ -552,6 +520,31 @@ const getTasks = (req: Request, res: Response) => {
 
 }
 
+// se crea un endpoint para obtener todos los logs de la base de datos mongodb
+
+const getLogs = async (req: Request, res: Response) => {
+    try {
+        // Conectar a la base de datos
+        const client = new MongoClient(urlMDB);
+        client.connect();
+        const db = client.db();
+        
+        // Obtener la colección de logs
+        const collection = db.collection("logs");
+
+
+        // Obtener los logs
+        const logs = await collection.find().toArray();
+        res.json(logs);
+    } catch (error) {
+        console.error("Error obteniendo logs:", error);
+        res.status(500).send("Error al obtener los logs.");
+    } 
+}
+
+setupConnection();
+
+
 
 // exportamos mis rutas de la aplicacion
 
@@ -565,6 +558,7 @@ export {
     createProject,
     getProjects,
     assignTask,
-    getTasks
+    getTasks,
+    getLogs
 
 };

@@ -6,27 +6,10 @@ services:
     build: ./backend
     ports:
       - "4000:4000"
-    depends_on:
-      - db
-
+    
     networks:
       - default1
 
-  db:
-    image: mysql:8.0
-    container_name: chatcartel_db
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: solares
-      MYSQL_DATABASE: chatcartel_db
-      MYSQL_USER: root
-      MYSQL_PASSWORD: solares
-    volumes:
-      - db_data:/var/lib/mysql
-
-volumes:
-  db_data:
 
 networks:
   default1:
