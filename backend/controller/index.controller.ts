@@ -5,11 +5,15 @@ import bcrypt from 'bcryptjs';
 import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
 import mongoose from 'mongoose';
 import e from 'express';
-//import {resourceController} from '../models/resourceController';    
+
+import registerLog from '../models/registerLog';
 
 //almacenar el token
 let globalToken: string = '';
 let isAdmin: boolean = false;
+
+//url de mi base de datos mongoDB
+const urlMDB = "mongodb+srv://solares:Pennywise2@cluster0.v1qki.mongodb.net/logs_db?retryWrites=true&w=majority&appName=Cluster0";
 // Definición de la interfaz para el cuerpo de la solicitud
 interface UserRequestBody {
     name: string;
@@ -39,7 +43,7 @@ const index = (req: Request, res: Response): void => {
 
 // Configuración de la conexión a la base de datos mysql
 const connection = mysql.createConnection({
-    host: 'localhost',
+    host: '34.41.84.53',
     user: 'root',
     password: 'solares123',
     database: 'chatcartel_db'
@@ -53,6 +57,17 @@ connection.connect((error) => {
         console.log("Conexión a la base de datos exitosa");
     }
 });
+
+// Conecta a MongoDB
+mongoose.connect(urlMDB)
+  .then(() => {
+    console.log("Conectado a la base de datos mongoDB");
+  })
+  .catch((error) => {
+    console.error("Error al conectar a la base de datos:", error);
+  });
+
+
 
 
 // endpoint para crear un nuevo usuario
@@ -92,6 +107,17 @@ const createUser = async (req: Request, res: Response) => {
                         console.log("Existe un error al insertar los datos en la tabla", err);
                         res.json("Existe un error al insertar los datos en la tabla");
                     } else {
+                        
+                        // Obtener el id del usuario recién creado
+                        connection.query('SELECT id_user FROM users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
+                            console.log("results:", results);
+                            // Registrar el log
+                            registerLog(results[0].id_user.toString(), "CREATE", "USER")
+                            .then(() => console.log("Log registrado"))
+                            .catch((err) => console.error("Error al registrar log:", err));
+                        });
+                        
+
                         res.json("Usuario creado exitosamente");
                     }
                 });
@@ -254,6 +280,9 @@ const updateUserInfo = (req: Request, res: Response) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
                 }
+                registerLog(id.toString(), "UPDATE", "USER")
+                .then(() => console.log("Log registrado"))
+                .catch((err) => console.error("Error al registrar log:", err));
         
         
                 res.json(results);
@@ -268,12 +297,17 @@ const updateUserInfo = (req: Request, res: Response) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
             }
+
+            // Registrar el log 
+            registerLog("1", "UPDATE", "USER")
+            .then(() => console.log("Log registrado"))
+            .catch((err) => console.error("Error al registrar log:", err));
     
     
             res.json(results);
         });
     } else {
-        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion,inicia sesion nuevamente!!' });
         
     }
 }
@@ -300,6 +334,10 @@ const deleteUser = (req: Request, res: Response) => {
             if (error) {
                     return res.status(500).json({ message: 'Error al eliminar datos en la BD' });
             }
+
+            registerLog("1", "DELETE", "USER")
+                .then(() => console.log("Log registrado"))
+                .catch((err) => console.error("Error al registrar log:", err));
         
         
             res.json(results);
@@ -345,6 +383,10 @@ const createProject = (req: Request, res: Response) => {
                 if (error) {
                     return res.status(500).json({ message: 'Error al insertar datos en la BD', error });
                 }
+                // Registrar el log
+                registerLog("1", "CREATE", "PROJECT")
+                .then(() => console.log("Log registrado"))
+                .catch((err) => console.error("Error al registrar log:", err));
             
             
                 res.json({ message: 'Proyecto creado exitosamente al usuario ', results });
@@ -441,7 +483,10 @@ const assignTask = (req: Request, res: Response) => {
                     
                     });
                 }
-            
+                
+                registerLog("1", "CREATE", "TASK")
+                .then(() => console.log("Log registrado"))
+                .catch((err) => console.error("Error al registrar log:", err));
             
                 res.json({ 
                     message: 'Tarea asignada exitosamente al proyecto ',

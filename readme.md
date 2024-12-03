@@ -190,7 +190,52 @@ Se puede actualizar la informacion de un usuario solo si este esta logeado y coi
 }
 ```
 
+## Eliminar un usuario(solo administradores)
+se puede eliminar un usuario solo si esta logeado como admin DELETE /users/:id
+
+ejemplo:
+
+DELETE /users/2 (este eliminara al usuario con id:2)
 
 
 
+## Creacion de un proyecto
+para crear un usuario debes ingresar la URL POST /projects para crear un proyecto con el siguiente cuerpo en formato JSON.
 
+solo el administrador puede crear proyectos.
+
+ejemplo:
+```json
+{
+   
+    "name_project":"Desarollo sofware pc",
+    "id_user":7
+
+}
+```
+
+## creacion de una tarea para un proyecto en especifico
+para crar una tarea de un proyecto el administrador debe crearla obteniendo el id del proyecto en parametros
+POST /projects/:projectId/tasks. Debes estar logeado como admin para poder asignar la tarea.
+
+```json
+{
+  "task_name": "hacer login2",
+  "status": "pending",
+  "id_user": 7,
+  "due_date": "2024-12-25"
+}
+```
+
+# Deploy de la API web
+
+----
+
+
+# Almacenamiento de Logs y Gestión de Bases de Datos: MongoDB y MySQL
+
+## MongoDB:
+Para la gestión y almacenamiento de logs, se optó por utilizar **MongoDB Atlas**, una plataforma completamente administrada que permite desplegar bases de datos MongoDB en la nube. Esta solución ofrece escalabilidad automática, alta disponibilidad y copias de seguridad integradas,lo que esto nos facilita la integracion de logs.
+
+## MySQL:
+En cuanto a la base de datos relacional utilizada para la aplicación, se implementó **MySQL** en **Google Cloud**. A través de los servicios de bases de datos gestionadas de Google Cloud, se crearon las instancias necesarias para proporcionar una infraestructura confiable, segura y de alto rendimiento. Google Cloud nos ofrece opciones avanzadas de administración, optimización de costos y escalabilidad, lo que garantiza que la base de datos MySQL pueda crecer y adaptarse a las necesidades de la aplicación de manera eficiente.
