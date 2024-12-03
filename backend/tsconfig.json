@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["node","jest"],                     // Incluir el tipo de Node.js
     "target": "ES6",                      // Compilar a ECMAScript 6
     "module": "commonjs",                  // Usar módulos CommonJS
     "strict": true,                        // Activar las comprobaciones estrictas

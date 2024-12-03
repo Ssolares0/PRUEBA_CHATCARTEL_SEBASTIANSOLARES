@@ -86,7 +86,7 @@ const createUser = async (req: Request, res: Response) => {
                         });
                         
 
-                        res.json("Usuario creado exitosamente");
+                        return res.status(200).json("Usuario creado exitosamente");
                     }
                 });
             }
@@ -216,7 +216,7 @@ const getUserInfo = (req: Request, res: Response): void => {
             res.json(results);
         });
     } else {
-        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
         
     }
     
@@ -275,7 +275,7 @@ const updateUserInfo = (req: Request, res: Response) => {
             res.json(results);
         });
     } else {
-        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion,inicia sesion nuevamente!!' });
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion,inicia sesion nuevamente!!' });
         
     }
 }
@@ -312,7 +312,7 @@ const deleteUser = (req: Request, res: Response) => {
         });
         
     } else {
-        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
 }
 
@@ -365,7 +365,7 @@ const createProject = (req: Request, res: Response) => {
 
         
     } else {
-        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
 }
 
@@ -405,7 +405,7 @@ const getProjects = (req: Request, res: Response) => {
         });
         
     } else {
-        res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
     }
 }
 
@@ -470,7 +470,7 @@ const assignTask = (req: Request, res: Response) => {
 
 
     } else {
-        res.status(403).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
 
 
@@ -513,7 +513,7 @@ const getTasks = (req: Request, res: Response) => {
              res.json(results);
          });
      } else {
-         res.status(403).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+         res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
          
      }
 
