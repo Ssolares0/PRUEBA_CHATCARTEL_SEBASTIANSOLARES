@@ -19,8 +19,16 @@ interface User {
     id_role: number;
 }
 
+interface Project{
+    id_project: number;
+    name_project: string;
+    created_time: string;
+    id_user: number;
+}
+
 export {
     UserRequestBody,
     LoginRequestBody,
-    User
+    User,
+    Project
 }

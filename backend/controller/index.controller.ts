@@ -1,20 +1,19 @@
 import express, { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import {mysqlconnection,connectToMySQL,connectToMongoDB} from '../basefunctions/conections';
+import { mysqlconnection, connectToMySQL, connectToMongoDB } from '../basefunctions/conections';
 import { generateToken, comparePassword, hashPassword, verificarTk } from '../autenticacion/auth';
-import { MongoClient } from 'mongodb';
 import { UserRequestBody, User, LoginRequestBody } from '../interfaces/interfaces';
-import { RowDataPacket } from 'mysql2';
+
+import {
+    validateUserData, userExists, insertUser,
+    getUserId, getAlldata, getUserById, updateUserInfos,
+    deleteUserById, createProjects, getProjectbyId,getAllProjects,setTask,getLogsMongo } from '../basefunctions/userUtilities';
 
 import registerLog from '../models/registerLog';
 
 //almacenar el token
 let globalToken: string = '';
 let isAdmin: boolean = false;
-
-const urlMDB = "mongodb+srv://solares:Pennywise2@cluster0.v1qki.mongodb.net/logs_db?retryWrites=true&w=majority&appName=Cluster0";
-
-
 
 
 // Función para la ruta index
@@ -25,7 +24,7 @@ const index = (req: Request, res: Response): void => {
 // Función para establecer las conexiones a las bases de datos
 const setupConnection = async () => {
 
-    try{
+    try {
         //tratemos de conectar a la base de datos mysql
         await connectToMySQL();
 
@@ -33,7 +32,7 @@ const setupConnection = async () => {
         await connectToMongoDB();
 
 
-    }catch(error){
+    } catch (error) {
         console.error("No se pueden establecer las conexiones de las BD", error);
     }
 
@@ -48,14 +47,21 @@ const createUser = async (req: Request, res: Response) => {
     // Validamos los campos
     console.log(body.username);
 
-    if (!body.username || !body.password || !body.name) {
-        res.status(401).json({ message: 'existe un error en los campos' });
-    } else {
-        // Si no existe ningún error seguimos
+    const validamos = validateUserData(body);
+
+    if (!validamos.valid) {
+        res.status(401).json({ message: validamos.message });
+    }
+    try {
+        // Verificar si el usuario ya existe
+        const existe = await userExists(body.username);
+        if (existe) {
+            return res.status(401).json({ message: 'El usuario ya existe, prueba con otro username' });
+        }
 
         //encriptamos la contraseña
         const hashedPassword = await hashPassword(body.password);
-        
+
         const user: User = {
             id_user: null,
             name: body.name,
@@ -64,41 +70,31 @@ const createUser = async (req: Request, res: Response) => {
             id_role: 2
         };
 
-        // Verificamos si el usuario ya existe en la db
-        mysqlconnection.query('SELECT * FROM Users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
-            if (results.length > 0) {
-                res.json("El usuario ya existe, prueba con otro username");
-            } else {
-                // Si no existe el usuario lo insertamos en la db
-                mysqlconnection.query('INSERT INTO Users SET ?', user, (err, result) => {
-                    if (err) {
-                        console.log("Existe un error al insertar los datos en la tabla", err);
-                        res.json("Existe un error al insertar los datos en la tabla");
-                    } else {
-                        
-                        // Obtener el id del usuario recién creado
-                        mysqlconnection.query('SELECT id_user FROM Users WHERE username = ?', [user.username], (error, results: RowDataPacket[], fields) => {
-                            console.log("results:", results);
-                            // Registrar el log
-                            registerLog(results[0].id_user.toString(), "CREATE", "USER")
-                            .then(() => console.log("Log registrado"))
-                            .catch((err) => console.error("Error al registrar log:", err));
-                        });
-                        
+        await insertUser(user);
 
-                        return res.status(200).json("Usuario creado exitosamente");
-                    }
-                });
-            }
-        });
+        // Obtener el id del usuario recién creado
+        const userId = await getUserId(body.username);
+        if (userId) {
+            // Registrar el log
+            registerLog(userId.toString(), "CREATE", "USER")
+                .then(() => console.log("Log registrado"))
+                .catch((err) => console.error("Error al registrar log:", err));
+        }
+
+    } catch (error) {
+        console.error("Error al crear el usuario:", error);
+        res.status(500).json({ message: 'Error al crear el usuario' });
     }
+
+
 }
+
 
 // endpoint para hacer login
 
 const login = async (req: Request, res: Response) => {
 
-    const { username, password} = req.body;
+    const { username, password } = req.body;
 
 
     // primero verificamos si  se mandaron los campos de usuario y contraseña
@@ -111,41 +107,32 @@ const login = async (req: Request, res: Response) => {
         //entonces como no existe error seguimos
         // buscamos el usuario en la base de datos
 
+        try {
+            // Verificar si el usuario ya existe
+            const existe = await userExists(username);
 
-        mysqlconnection.query('SELECT * FROM Users WHERE username = ?', [username], async (error, results: RowDataPacket[], fields) => {
-            if (error) {
-                console.log('Error en la consulta:', error);
-                return res.status(500).json({ message: 'Error en la  consulta de la base de datos' });
-            }
-            if (results.length === 0) {
+            if (!existe) {
                 return res.status(401).json({ message: 'Usuario no encontrado' });
             }
-            // como si encontro el usuario seguimos
-            const user = results[0];
-
-            // Verificamos si el usuario es administrador
-            
-
-            if (user.id_role === 1 && username === 'admin' && password === 'admin') { 
-                isAdmin = true;
-                
-
+            //como si existe entonces obtenemos los datos del usuario
+            const user = await getUserId(username);
+            if (user === 1 && username === 'admin' && password === 'admin') {
                 globalToken = "admin";
-                
-                
                 // Responder con el token
                 res.json({
                     message: 'Autenticación exitosa Como Administrador!!',
-                    
+
                 });
-                
+
             } else {
                 //como no es administrador verificamos el password con bcrypt
                 isAdmin = false;
-                
-               
+
+                const user = await getAlldata(username);
+
+
                 // Comparamos la contraseña ingresada con el hash almacenado en la base de datos
-                const ismatch = await bcrypt.compare(password, user.password);
+                const ismatch = await bcrypt.compare(password, user?.password || '');
 
                 if (!ismatch) {
                     return res.status(401).json({ message: ' Usuario o Contraseña incorrecta' });
@@ -153,10 +140,10 @@ const login = async (req: Request, res: Response) => {
 
                 // como las credenciales son correctas generamos el token
                 const payload = {
-                    id_user: user.id_user,
-                    name: user.name,
-                    username: user.username,
-                    id_role: user.id_role
+                    id_user: user?.id_user,
+                    name: user?.name,
+                    username: user?.username,
+                    id_role: user?.id_role
                 };
 
                 const token = generateToken(payload);
@@ -166,60 +153,63 @@ const login = async (req: Request, res: Response) => {
                 // Responder con el token
                 res.json({
                     message: `Bienvenido ${username}!!`,
-                    
+
                 });
 
-                }
-           
+            }
 
-        });
+        } catch (error) {
+            console.error("Error al verificar si el usuario existe:", error);
+            res.status(500).json({ message: 'Error al verificar si el usuario existe' });
+
+
+        }
+
 
     }
 
 }
 
 // endpoint para obtener informacion del usuario autenticado
-const getUserInfo = (req: Request, res: Response): void => {
+const getUserInfo = async (req: Request, res: Response) => {
     // Verificar si el token es válido
     const token = globalToken;
 
     //con la funcion verificarTk verificamos si el token es valido
     const decoded = verificarTk(token);
-    
-    if (decoded ) {
+
+    if (decoded) {
         //como si esta autorizado entonces obtenemos el id del usuario
         const { id } = req.params; //obtengo el id de los parametros
 
         //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
-       if (id.toString() === decoded.id_user.toString()) {
-            mysqlconnection.query('SELECT * FROM Users WHERE id_user = ?', [id], (error, results) => {
-                if (error) {
-                    return res.status(500).json({ message: 'Error al consultar la base de datos' });
-                }
-        
-        
-                res.json(results);
-            });
-        } else {
-            res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
+        if (id.toString() !== decoded.id_user.toString()) {
+            res.status(401).json({ message: 'El id no coincide con el usuario logeado' });
+            return;
         }
-        
-    } else if (token === 'admin') { 
+
+        const user = await getUserById(id);
+
+        console.log(user);
+
+        res.json(user);
+
+    } else if (token === 'admin') {
         //como es admin entonces puede ver todos los usuarios
         mysqlconnection.query('SELECT * FROM Users', (error, results) => {
             if (error) {
                 return res.status(500).json({ message: 'Error al consultar la base de datos' });
             }
-    
-    
+
+
             res.json(results);
         });
     } else {
         res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
-        
+
     }
-    
+
 
 }
 //endpoint para actualizar la informacion del usuario
@@ -227,56 +217,54 @@ const updateUserInfo = (req: Request, res: Response) => {
     //obtenemos el id del usuario de los parametros
     const { id } = req.params; //obtengo el id de los parametros
     //obtengo los datos del body
-    const {name, username} = req.body;
+    const { name, username } = req.body;
 
-    if (!name || !username )  {
+    if (!name || !username) {
         return res.status(401).json({ message: 'Los campos name y username son obligatorios' });
-    } 
+    }
 
     // Verificar si el token es válido
     const token = globalToken;
 
     //con la funcion verificarTk verificamos si el token es valido
     const decoded = verificarTk(token);
-    
-    if (decoded ) {
+
+    if (decoded) {
 
         //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
-       if (id.toString() === decoded.id_user.toString()) {
-            mysqlconnection.query('UPDATE Users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
-                if (error) {
-                    return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
-                }
-                registerLog(id.toString(), "UPDATE", "USER")
+        if (id.toString() === decoded.id_user.toString()) {
+
+            updateUserInfos(id.toString(), name, username)
+
+
+            registerLog(id.toString(), "UPDATE", "USER")
                 .then(() => console.log("Log registrado"))
                 .catch((err) => console.error("Error al registrar log:", err));
-        
-        
-                res.json(results);
-            });
+
+
+            res.json({ message: 'Datos actualizados correctamente' });
+
         } else {
             res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
         }
-        
-    } else if (token === 'admin') { 
-        //como es admin entonces puede modificar todos los usuarios
-        mysqlconnection.query('UPDATE Users SET name = ?, username = ? WHERE id_user = ?', [name,username,id], (error, results) => {
-            if (error) {
-                return res.status(500).json({ message: 'Error al actualizar datos en la BD' });
-            }
 
-            // Registrar el log 
-            registerLog("1", "UPDATE", "USER")
+    } else if (token === 'admin') {
+        //como es admin entonces puede modificar todos los usuarios
+        updateUserInfos(id.toString(), name, username)
+        // Registrar el log 
+        registerLog("1", "UPDATE", "USER")
             .then(() => console.log("Log registrado"))
             .catch((err) => console.error("Error al registrar log:", err));
-    
-    
-            res.json(results);
-        });
+
+
+
+
+        res.json({ message: 'Datos actualizados correctamente' });
+
     } else {
         res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion,inicia sesion nuevamente!!' });
-        
+
     }
 }
 
@@ -289,81 +277,107 @@ const deleteUser = (req: Request, res: Response) => {
     // Verificar si el token es válido
     const token = globalToken;
 
-    
-    
+
+
     // solo administrador puede eliminar un usuario registrado
     if (token === 'admin') {
 
-        if (!id ) {
+        if (!id) {
             return res.status(401).json({ message: 'ERROR: El id es obligatorio' });
         } else if (id === '1') {
             return res.status(401).json({ message: 'ERROR: No puedes eliminar al administrador' });
-        } mysqlconnection.query('DELETE FROM Users WHERE id_user = ?', [id], (error, results) => {
-            if (error) {
-                    return res.status(500).json({ message: 'Error al eliminar datos en la BD' });
-            }
+        }
+        //funcion para eliminar el usuario solo si eres administrador
+        deleteUserById(id);
 
-            registerLog("1", "DELETE", "USER")
-                .then(() => console.log("Log registrado"))
-                .catch((err) => console.error("Error al registrar log:", err));
-        
-        
-            res.json(results);
-        });
-        
+        registerLog("1", "DELETE", "USER")
+            .then(() => console.log("Log registrado"))
+            .catch((err) => console.error("Error al registrar log:", err));
+
+
+        res.status(200).json({ message: 'Usuario eliminado correctamente' });
+
+
     } else {
         res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
 }
 
 // endpoint para crar un proyecto
-const createProject = (req: Request, res: Response) => {
+const createProject = async (req: Request, res: Response) => {
 
+    //obtenemos los datos del body
+    const { name_project, id_user } = req.body;
+    // Verificar si el token es válido
     const token = globalToken;
+
+    //con la funcion verificarTk verificamos si el token es valido
+    const decoded = verificarTk(token);
+
+    // Obtengo la fecha actual  y la formateo
+    const now = new Date();
+    const created_time = now.toISOString().slice(0, 19).replace('T', ' ');
+
 
     //solo el administrador puede crearle projectos a los usuarios y tareas
 
     if (token === 'admin') {
-        //obtenemos los datos del body
-        const {name_project, id_user} = req.body;
 
-        if (!name_project  || !id_user ) {
+
+        if (!name_project || !id_user) {
             return res.status(401).json({ message: 'Los campos name y id_user son obligatorios' });
-        } 
-         // Obtengo la fecha actual  y la formateo
-        const now = new Date();
-        const created_time  = now.toISOString().slice(0, 19).replace('T', ' ');
+        }
 
         //verificamos que el usuario exista
-        mysqlconnection.query('SELECT * FROM Users WHERE id_user = ?', [id_user], (error, results: RowDataPacket[], fields) => {
 
-            if (error) {
-                console.log('Error en la consulta:', error);
-                return res.status(500).json({ message: 'Error en la  consulta de la base de datos' });
-            }
-            if (results.length === 0) {
-                return res.status(401).json({ message: 'ERROR: Al usuario que deseas agregar un proyecto no existe!' });
-
-            }
-            // como si existe insertamos los datos en la tabla projects
-
-            mysqlconnection.query('INSERT INTO projects SET ?', {name_project,created_time , id_user}, (error, results) => {
-                if (error) {
-                    return res.status(500).json({ message: 'Error al insertar datos en la BD', error });
-                }
-                // Registrar el log
-                registerLog("1", "CREATE", "PROJECT")
-                .then(() => console.log("Log registrado"))
-                .catch((err) => console.error("Error al registrar log:", err));
-            
-            
-                res.json({ message: 'Proyecto creado exitosamente al usuario ', results });
-            });
-
-
-        });
-
+        const verifyUser = await getUserById(id_user);
         
+
+       
+        if (verifyUser!==null) {
+            // como si existe insertamos los datos en la tabla projects
+            const results = createProjects(name_project, created_time, id_user);
+
+            // Registrar el log
+            registerLog("1", "CREATE", "PROJECT")
+            .then(() => console.log("Log registrado"))
+            .catch((err) => console.error("Error al registrar log:", err));
+
+
+            res.json({ message: 'Proyecto creado exitosamente al usuario ',results });
+
+
+        }else{
+            res.status(401).json({ message: 'El usuario al que se desea agregar el proyecto no existe' });
+        }
+
+
+    } else if (decoded) {
+
+        if (id_user.toString() === decoded.id_user.toString()) {
+
+            //verificamos que el usuario exista
+            const verifyUser = await getUserById(id_user);
+            if (verifyUser !== null) {
+                // como si existe insertamos los datos en la tabla projects
+                const results = createProjects(name_project, created_time, id_user);
+
+                // Registrar el log
+                registerLog(decoded.id_user.toString(), "CREATE", "PROJECT")
+                    .then(() => console.log("Log registrado"))
+                    .catch((err) => console.error("Error al registrar log:", err));
+
+
+                res.json({ message: 'Proyecto creado exitosamente al usuario ', results });
+
+
+            }
+
+
+        }else{
+            res.status(401).json({ message: 'El id no coincide con el usuario logeado' });
+        }
+
     } else {
         res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
     }
@@ -372,38 +386,29 @@ const createProject = (req: Request, res: Response) => {
 
 //endpoint para obtener los projectos
 
-const getProjects = (req: Request, res: Response) => {
+const getProjects = async (req: Request, res: Response) => {
     // Verificar si el token es válido
     const token = globalToken;
 
     //con la funcion verificarTk verificamos si el token es valido
     const decoded = verificarTk(token);
 
-    if (decoded){
-        
+    if (decoded) {
+
         let id = decoded.id_user.toString();
-        if (decoded.id_user.toString()) {
-            mysqlconnection.query('SELECT * FROM projects WHERE id_user = ?', [id], (error, results) => {
-                if (error) {
-                    return res.status(500).json({ message: 'Error al consultar la base de datos' });
-                }
-        
-        
-                res.json(results);
-            });
+        if (decoded.id_user.toString() ) {
+
+            const project = await getProjectbyId(id);
+
+            res.json(project);
+           
         } else {
-            res.status(400).json({ message: 'El id no coincide con el usuario logeado' });
+            res.status(400).json({ message: 'El id no coincide con el id del usuario logeado' });
         }
     } else if (token === 'admin') {
-        mysqlconnection.query('SELECT * FROM projects', (error, results) => {
-            if (error) {
-                return res.status(500).json({ message: 'Error al consultar la base de datos' });
-            }
-    
-    
-            res.json(results);
-        });
-        
+        //como es admin entonces puede ver todos los proyectos
+        const projects = await getAllProjects();
+        res.json(projects);
     } else {
         res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
     }
@@ -412,12 +417,12 @@ const getProjects = (req: Request, res: Response) => {
 
 // endpoint para asignrar tareas a un proyecto especifico
 
-const assignTask = (req: Request, res: Response) => {
+const assignTask = async (req: Request, res: Response) => {
 
-    const {id} = req.params;
-    
+    const { id } = req.params;
 
-    const {task_name, status, id_user, due_date} = req.body;
+
+    const { task_name, status, id_user, due_date } = req.body;
 
     // valido de  que los datos datos requeridos esten completos
     if (!task_name || !status || !id_user || !due_date) {
@@ -430,47 +435,24 @@ const assignTask = (req: Request, res: Response) => {
 
     if (token === 'admin') {
         //verificamos que el proyecto exista
-        mysqlconnection.query('SELECT * FROM projects WHERE id_project = ?', [id], (error, results: RowDataPacket[], fields) => {
+        const verifyProject = await getProjectbyId(id_user);
+        const id_project = id;
+        if (verifyProject !== null) {
+            //como si existe insertamos en la bd
+            const insertTask = setTask(task_name, status, id_user, due_date, id_project);
 
-            if (error) {
-                console.log('Error en la consulta:', error);
-                return res.status(500).json({ message: 'ERROR: en la  consulta de la base de datos' });
-            }
-            if (results.length === 0) {
-                return res.status(404).json({ message: 'ERROR: El proyecto al que deseas asignar una tarea no existe!' });
 
-            }
-            // como si existe insertamos los datos en la tabla tasks
+            registerLog("1", "CREATE", "TASK")
+            .then(() => console.log("Log registrado"))
+            .catch((err) => console.error("Error al registrar log:", err));
 
-            const id_project = id;
-
-            mysqlconnection.query('INSERT INTO tasks SET ?', {task_name, status, id_user, due_date, id_project}, (error, results) => {
-                if (error) {
-                    return res.status(500).json({ 
-                        message: 'Error al insertar datos en la BD', error 
-                    
-                    });
-                }
-                
-                registerLog("1", "CREATE", "TASK")
-                .then(() => console.log("Log registrado"))
-                .catch((err) => console.error("Error al registrar log:", err));
-            
-                res.json({ 
-                    message: 'Tarea asignada exitosamente al proyecto ',
-                    task_name,
-                    status,
-                    id_user,
-                    due_date,
-                    id
-                
-                });
-            });
-        });
-
+            res.json({ message: 'Tarea Agregada Correctamente al proyecto del usuario ', insertTask });
+        }else{
+            res.status(401).json({ message: 'El proyecto al que se desea agregar la tarea no existe' });
+        }
 
     } else {
-        res.status(401).json({ message: 'ERROR: No estas autorizado o ha finalizado la sesion!!' });
+        res.status(401).json({ message: 'ERROR: solo el admin puede agregar tareas a un proyecto o ha finalizado la sesion!!' });
     }
 
 
@@ -480,42 +462,42 @@ const assignTask = (req: Request, res: Response) => {
 // endpoint para obtener las tareas de un proyecto especifico
 const getTasks = (req: Request, res: Response) => {
 
-  
-     // Verificar si el token es válido
-     const token = globalToken;
 
-     //con la funcion verificarTk verificamos si el token es valido
-     const decoded = verificarTk(token);
-     
-     if (decoded ) {
-         //como si esta autorizado entonces obtenemos el id del usuario
-         const { id } = req.params; //obtengo el id de los parametros
- 
-         //verificamos si el id de los parametros  es igual al id del usuario autenticado
- 
+    // Verificar si el token es válido
+    const token = globalToken;
+
+    //con la funcion verificarTk verificamos si el token es valido
+    const decoded = verificarTk(token);
+
+    if (decoded) {
+        //como si esta autorizado entonces obtenemos el id del usuario
+        const { id } = req.params; //obtengo el id de los parametros
+
+        //verificamos si el id de los parametros  es igual al id del usuario autenticado
+
         
-        mysqlconnection.query('SELECT * FROM tasks WHERE id_project = ?', [id], (error, results) => {
-                if (error) {
-                     return res.status(500).json({ message: 'Error al consultar la base de datos' });
-                } res.json(results);
-                
-            });
- 
-         
-     } else if (token === 'admin') { 
-         //como es admin entonces puede ver todos las tareas
-         mysqlconnection.query('SELECT * FROM tasks', (error, results) => {
-             if (error) {
-                 return res.status(500).json({ message: 'Error al consultar la base de datos' });
-             }
-     
-     
-             res.json(results);
-         });
-     } else {
-         res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
-         
-     }
+        mysqlconnection.query('SELECT * FROM Tasks WHERE id_project = ?', [id], (error, results) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error al consultar la base de datos' });
+            } res.json(results);
+
+        });
+
+
+    } else if (token === 'admin') {
+        //como es admin entonces puede ver todos las tareas
+        mysqlconnection.query('SELECT * FROM Tasks', (error, results) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error al consultar la base de datos' });
+            }
+
+
+            res.json(results);
+        });
+    } else {
+        res.status(401).json({ message: 'No estas autorizado o ha finalizado la sesion!!' });
+
+    }
 
 
 }
@@ -524,24 +506,16 @@ const getTasks = (req: Request, res: Response) => {
 
 const getLogs = async (req: Request, res: Response) => {
     try {
-        // Conectar a la base de datos
-        const client = new MongoClient(urlMDB);
-        client.connect();
-        const db = client.db();
-        
-        // Obtener la colección de logs
-        const collection = db.collection("logs");
-
-
-        // Obtener los logs
-        const logs = await collection.find().toArray();
-        res.json(logs);
+        const logs = await getLogsMongo(); // llamamos a la función para obtener los logs
+        res.json(logs); // Enviar los logs como respuesta
     } catch (error) {
         console.error("Error obteniendo logs:", error);
-        res.status(500).send("Error al obtener los logs.");
-    } 
+        res.status(500).send("Error al obtener los logs."); // Respuesta en caso de error
+    }
 }
 
+
+//exportamos la funcion setupConnection
 setupConnection();
 
 
