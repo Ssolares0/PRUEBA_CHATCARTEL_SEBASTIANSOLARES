@@ -7,7 +7,7 @@ import { UserRequestBody, User, LoginRequestBody } from '../interfaces/interface
 import {
     validateUserData, userExists, insertUser,
     getUserId, getAlldata, getUserById, updateUserInfos,
-    deleteUserById, createProjects, getProjectbyId,getAllProjects,setTask,getLogsMongo } from '../basefunctions/userUtilities';
+    deleteUserById, createProjects, getProjectbyId,getAllProjects,setTask,projectExists,getLogsMongo } from '../basefunctions/userUtilities';
 
 import registerLog from '../models/registerLog';
 
@@ -419,9 +419,9 @@ const getProjects = async (req: Request, res: Response) => {
 
 const assignTask = async (req: Request, res: Response) => {
 
+    
+
     const { id } = req.params;
-
-
     const { task_name, status, id_user, due_date } = req.body;
 
     // valido de  que los datos datos requeridos esten completos
@@ -434,10 +434,14 @@ const assignTask = async (req: Request, res: Response) => {
     //solo el administrador puede asignar tareas a los usuarios
 
     if (token === 'admin') {
+        
         //verificamos que el proyecto exista
-        const verifyProject = await getProjectbyId(id_user);
+        const verifyProject = await projectExists(id);
+        console.log(verifyProject);
         const id_project = id;
-        if (verifyProject !== null) {
+        
+        
+        if (verifyProject !== false) {
             //como si existe insertamos en la bd
             const insertTask = setTask(task_name, status, id_user, due_date, id_project);
 
@@ -473,7 +477,6 @@ const getTasks = (req: Request, res: Response) => {
         //como si esta autorizado entonces obtenemos el id del usuario
         const { id } = req.params; //obtengo el id de los parametros
 
-        //verificamos si el id de los parametros  es igual al id del usuario autenticado
 
         
         mysqlconnection.query('SELECT * FROM Tasks WHERE id_project = ?', [id], (error, results) => {

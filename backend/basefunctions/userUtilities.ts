@@ -129,6 +129,15 @@ const getAllProjects = async (): Promise<Project[]> => {
     return results as Project[]; // Asegúrate de que la interfaz Project coincida con la estructura de los datos
 };
 
+const projectExists = async (id: string): Promise<boolean> => {
+    const [results] = await mysqlconnection.promise().query<RowDataPacket[]>('SELECT * FROM Projects WHERE id_project = ?', [id]);
+    // Verificar si 
+    return results.length > 0;
+
+}
+
+
+
 const setTask = async (task_name: string, status: string,id_user:string,due_date:string,id_project:string): Promise<boolean> => {
     const [results] = await mysqlconnection.promise().query<OkPacket>(
         'INSERT INTO Tasks SET ?',
@@ -171,5 +180,6 @@ export {
     getProjectbyId,
     getAllProjects,
     setTask,
+    projectExists,
     getLogsMongo
 };

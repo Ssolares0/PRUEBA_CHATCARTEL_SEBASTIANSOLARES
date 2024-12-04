@@ -8,13 +8,13 @@ El objetivo de este proyecto es desarrollar una *API RESTful* utilizando *Node.j
    - proyectos
 2. Asignar roles a los usuarios en diferentes proyectos.
 
-Además, se utilizará una base de datos *MySQL* o *MongoDB* para almacenar los datos de forma relacional.
+Además, se utilizará una base de datos *MySQL* y *MongoDB* para almacenar los datos de forma relacional y los logs.
 
 ## Requisitos
 
 ### Servicios en la nube
-- El proyecto se desplegará utilizando *Docker* para la creación de contenedores.
-- Posteriormente, se implementará en la nube.
+- El proyecto se desplegará en AWS EC2 utilizando *Docker* para la creación de contenedores.
+- mongo atlas para almacenar los logs y google cloud para almacenar la base de datos del programa.
 
 ### Funcionalidades principales
 1. *Gestión de usuarios*:
@@ -38,9 +38,23 @@ Además, se utilizará una base de datos *MySQL* o *MongoDB* para almacenar los 
 - mysql, mongodb como base de datos
 - Docker para cargar la imagen de la base de datos
 
+## Frameworks o librerias utilizadas en typescript
+
+- express
+- bycryptjs
+- mysql2
+- mongodb
+- mongoose
+- jsonwebtoken
+
+
+
+## Seguridad
+Se implemento JWT con expiracion de 1h para proteger las rutas y se usó hashing de contraseñas para encriptar y desencriptar las contraseñas.
+
   
 
-### Analisis de Diseño base de datos
+# Analisis de Diseño base de datos
 
 ## Relaciones
 
@@ -95,6 +109,16 @@ CREATE TABLE `Projects` (
 
 ### Como usar la API RESTful
 Debes utilizar postman como herramienta para consumir APIS o puedes utilizar la que desees.
+
+
+### **Aceder a la API**
+1. Desde el navegador ingresa la siguiente ruta:
+
+```php
+http://3.94.54.41:4000/
+
+
+```
 
 ## Usuario admin
 Solo existe un administrador de la aplicacion y cuenta con la siguiente informacion, el id del admin empieza con 1 y el resto
@@ -227,9 +251,57 @@ POST /projects/:projectId/tasks. Debes estar logeado como admin para poder asign
 }
 ```
 
+## Creacion de Logs para almacenar las actividades realizadas
+
+Estructura:
+```json
+{
+ "userId": "1",
+ "action": "CREATE",
+ "resource": "TASK",
+ "timestamp": "2024-12-03T16:54:02.459Z"
+}
+```
+
+
+
 # Deploy de la API web
 
-----
+Para realizar el deploy de mi aplicacion utilice AWS EC2 y Docker, y para poder validar el acceso desde un entorno externo, se realizaron estos pasos:
+
+## **1. Configuración inicial del servidor en AWS EC2**
+
+### **Crear una instancia EC2**
+1. Iniciar sesion en la consola de EC2 y lanzar instancia
+2. configure lo siguiente:
+- Sistema operativo: Amazon Ubuntu.
+   - Tipo de instancia: `t2.micro.
+   - Grupo de seguridad:
+     - **HTTP**: Puerto 80.
+     - **Custom TCP**: Puerto de tu API: 4000.
+     - **SSH**: Puerto 22 (para acceso remoto).
+3. Se lanza la instancia y guardo el archivo .pem en mi proyecto(esencial para la conexion).
+
+### **Conectar a la instancia**
+Utiliza un cliente SSH para conectarte al servidor:
+```bash
+ssh -i (<miarchivopem>).pem ec2-user@<3.94.54.41>
+```
+
+### **subir la aplicacion al servidor**
+
+1. para poder transferir mi aplicacion local al serivor de la instancia
+se utilizo scp para poder cargar los archivos de mi aplicacion, con los siguientes comandos.
+
+
+```bash
+scp -i <tarchivopem>.pem -r ./mi-proyecto ec2-user@<3.94.54.41>:/home/ec2-user/downloads
+
+```
+2. Luego teniendo todos los archivos en mi raiz, ejecuto el archivo dockerfile para levantar la imagen y el contenedor.
+
+
+
 
 
 # Almacenamiento de Logs y Gestión de Bases de Datos: MongoDB y MySQL
@@ -238,7 +310,10 @@ POST /projects/:projectId/tasks. Debes estar logeado como admin para poder asign
 Para la gestión y almacenamiento de logs, se optó por utilizar **MongoDB Atlas**, una plataforma completamente administrada que permite desplegar bases de datos MongoDB en la nube. Esta solución ofrece escalabilidad automática, alta disponibilidad y copias de seguridad integradas,lo que esto nos facilita la integracion de logs.
 
 PARA OBTENER LOS LOGS SE IMPLEMENTO UN ENDPOINT ESPECIFICO PARA OBTENER LOS LOGS DE LA BASE DE DATOS:
-- localhost:4000/getLogs
+
+```php
+http://3.94.54.41:4000/getLogs
+```
 
 ## MySQL:
 En cuanto a la base de datos relacional utilizada para la aplicación, se implementó **MySQL** en **Google Cloud**. A través de los servicios de bases de datos gestionadas de Google Cloud, se crearon las instancias necesarias para proporcionar una infraestructura confiable, segura y de alto rendimiento. Google Cloud nos ofrece opciones avanzadas de administración, optimización de costos y escalabilidad, lo que garantiza que la base de datos MySQL pueda crecer y adaptarse a las necesidades de la aplicación de manera eficiente.
